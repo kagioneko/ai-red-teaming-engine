@@ -41,11 +41,18 @@ class LLMClient:
         model: str = DEFAULT_MODEL,
         max_tokens: int = 8192,
         backend: str = "api",
+        system_override: str | None = None,
     ):
         self.model = model
         self.max_tokens = max_tokens
         self.backend_name = backend
         self._backend = _create_backend(backend, model, max_tokens)
+        self._system_override = system_override
+
+    def call(self, user_prompt: str) -> str:
+        """system_override が設定されている場合はそれを使用する簡易呼び出し"""
+        system = self._system_override or ""
+        return self._backend.query(system, user_prompt)
 
     def query(self, system: str, user: str) -> str:
         return self._backend.query(system, user)

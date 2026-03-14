@@ -147,7 +147,7 @@ class AuditSummary(BaseModel):
 
 class AuditReport(BaseModel):
     """最終レポート"""
-    engine_version: str = "0.1"
+    engine_version: str = "0.2"
     scan_id: str
     target_type: TargetType
     tech_stack: list[str]
@@ -158,3 +158,52 @@ class AuditReport(BaseModel):
     attack_surface: AttackSurfaceMap
     issues: list[Issue]
     static_analysis: StaticAnalysisResult
+
+
+class FileAuditResult(BaseModel):
+    """ディレクトリ監査における1ファイルの結果"""
+    file_path: str
+    report: AuditReport
+    error: str = ""
+
+
+class DirAuditReport(BaseModel):
+    """ディレクトリ丸ごと監査レポート（複数ファイル集約）"""
+    engine_version: str = "0.2"
+    scan_id: str
+    target_dir: str
+    audit_mode: AuditMode
+    file_count: int
+    skipped_files: list[str] = Field(default_factory=list)
+    file_results: list[FileAuditResult]
+    aggregated_summary: AuditSummary
+
+
+class BackendResult(BaseModel):
+    """比較実行における1バックエンドの結果"""
+    backend: str
+    report: AuditReport
+    elapsed_sec: float = 0.0
+    error: str = ""
+
+
+class CompareIssue(BaseModel):
+    """比較対象のIssue（どちらのバックエンドが検出したか）"""
+    title: str
+    severity: Severity
+    category: Category
+    fingerprint: str
+    found_by: list[str]  # バックエンド名のリスト
+
+
+class CompareReport(BaseModel):
+    """2バックエンド比較レポート"""
+    engine_version: str = "0.2"
+    scan_id: str
+    file_path: str
+    audit_mode: AuditMode
+    backends: list[str]
+    backend_results: list[BackendResult]
+    issues_both: list[CompareIssue] = Field(default_factory=list)
+    issues_only: dict[str, list[CompareIssue]] = Field(default_factory=dict)  # backend -> issues
+    agreement_rate: float = 0.0

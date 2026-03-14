@@ -16,12 +16,34 @@ from .models import (
     AuditMode,
     AuditReport,
     AuditSummary,
+    DirAuditReport,
+    FileAuditResult,
     Issue,
+    Severity,
     StaticAnalysisResult,
+    TargetType,
 )
+from .ignorer import IgnoreRules, filter_issues, load_ignore_rules, should_skip_file
 from .normalizer import normalize
 from .scorer import assign_issue_ids, assign_priority, sort_issues_by_priority
 from .static_tools import run_static_analysis
+
+# ディレクトリ監査で対象とする拡張子とその自動判定タイプ
+_EXT_TO_TYPE: dict[str, TargetType] = {
+    ".py": "code", ".js": "code", ".ts": "code", ".jsx": "code", ".tsx": "code",
+    ".go": "code", ".rs": "code", ".java": "code", ".rb": "code", ".php": "code",
+    ".c": "code", ".cpp": "code", ".cs": "code", ".swift": "code", ".kt": "code",
+    ".sh": "code", ".bash": "code",
+    ".yaml": "api", ".yml": "api", ".json": "api", ".toml": "api",
+    ".md": "spec", ".rst": "spec", ".txt": "spec",
+}
+
+_SKIP_DIRS = {
+    ".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", "venv",
+    ".tox", "dist", "build", ".mypy_cache", ".pytest_cache", "coverage",
+}
+
+_MAX_FILE_BYTES = 200_000  # 200KB 超はスキップ
 
 
 def run_audit(
@@ -31,6 +53,7 @@ def run_audit(
     model: str = DEFAULT_MODEL,
     backend: str = "api",
     log_dir: Path | None = None,
+    ignore_rules: IgnoreRules | None = None,
 ) -> AuditReport:
     """
     メイン監査パイプライン。
@@ -83,6 +106,10 @@ def run_audit(
         threshold = _sev_rank.get(audit_input.severity_filter, 1)
         issues = [i for i in issues if _sev_rank.get(i.severity, 0) >= threshold]
 
+    # ignore_rules の適用
+    if ignore_rules and not ignore_rules.is_empty:
+        issues = filter_issues(issues, ignore_rules)
+
     # 差分追跡（patch モード）
     if mode == "patch" and audit_input.previous_findings:
         issues = _apply_diff_tracking(issues, audit_input.previous_findings)
@@ -107,6 +134,163 @@ def run_audit(
         save_report(report, log_dir)
 
     return report
+
+
+def run_dir_audit(
+    target_dir: Path,
+    mode: AuditMode = "deep",
+    enable_static: bool = True,
+    model: str = DEFAULT_MODEL,
+    backend: str = "api",
+    log_dir: Path | None = None,
+    target_type: TargetType | None = None,
+    tech_stack: list[str] | None = None,
+    system_overview: str = "",
+    exposure: str = "internal",
+    severity_filter: Severity | None = None,
+    extensions: set[str] | None = None,
+    verbose: bool = True,
+    ignore_rules: IgnoreRules | None = None,
+) -> DirAuditReport:
+    """
+    ディレクトリ丸ごと監査。
+    対象ファイルを再帰的に収集し、ファイルごとに run_audit() を実行して集約する。
+    """
+    import sys
+
+    scan_id = str(uuid.uuid4())
+    allowed_exts = extensions if extensions else set(_EXT_TO_TYPE.keys())
+    tech_stack = tech_stack or []
+    rules = ignore_rules or IgnoreRules()
+
+    # ファイル収集
+    target_files: list[Path] = []
+    skipped: list[str] = []
+
+    for p in sorted(target_dir.rglob("*")):
+        # 組み込みスキップディレクトリ判定
+        if any(part in _SKIP_DIRS for part in p.parts):
+            continue
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in allowed_exts:
+            continue
+        if p.stat().st_size > _MAX_FILE_BYTES:
+            skipped.append(str(p))
+            if verbose:
+                print(f"  ⚠️  スキップ（サイズ超過）: {p}", file=sys.stderr)
+            continue
+        # .redteam-ignore のファイルパターン照合
+        if should_skip_file(p, rules, base_dir=target_dir):
+            skipped.append(str(p))
+            if verbose:
+                print(f"  🚫 スキップ（ignore ルール）: {p}", file=sys.stderr)
+            continue
+        target_files.append(p)
+
+    if verbose:
+        print(f"📂 対象ファイル: {len(target_files)} 件", file=sys.stderr)
+
+    file_results: list[FileAuditResult] = []
+
+    for i, fp in enumerate(target_files, 1):
+        if verbose:
+            print(f"  [{i}/{len(target_files)}] {fp}", file=sys.stderr)
+
+        try:
+            content = fp.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            skipped.append(str(fp))
+            file_results.append(FileAuditResult(file_path=str(fp), error=str(e), report=_empty_report(fp, mode)))
+            continue
+
+        detected_type = target_type or _EXT_TO_TYPE.get(fp.suffix.lower(), "code")
+
+        audit_input = AuditInput(
+            target_content=content,
+            target_type=detected_type,
+            tech_stack=tech_stack,
+            system_overview=system_overview,
+            exposure_level=exposure,  # type: ignore
+            severity_filter=severity_filter,
+            file_path=str(fp.resolve()),
+        )
+
+        try:
+            report = run_audit(
+                audit_input=audit_input,
+                mode=mode,
+                enable_static=enable_static,
+                model=model,
+                backend=backend,
+                log_dir=None,  # ディレクトリ監査は最後にまとめて保存
+                ignore_rules=rules,
+            )
+            file_results.append(FileAuditResult(file_path=str(fp), report=report))
+        except Exception as e:
+            file_results.append(FileAuditResult(
+                file_path=str(fp),
+                error=str(e),
+                report=_empty_report(fp, mode),
+            ))
+
+    # 集約サマリー
+    all_issues: list[Issue] = []
+    for fr in file_results:
+        if not fr.error:
+            all_issues.extend(fr.report.issues)
+
+    static_total = StaticAnalysisResult()
+    for fr in file_results:
+        if not fr.error:
+            static_total = StaticAnalysisResult(
+                semgrep_ran=static_total.semgrep_ran or fr.report.static_analysis.semgrep_ran,
+                gitleaks_ran=static_total.gitleaks_ran or fr.report.static_analysis.gitleaks_ran,
+                findings=static_total.findings + fr.report.static_analysis.findings,
+            )
+
+    aggregated_summary = _build_summary(all_issues, static_total, 0)
+
+    dir_report = DirAuditReport(
+        scan_id=scan_id,
+        target_dir=str(target_dir.resolve()),
+        audit_mode=mode,
+        file_count=len(target_files),
+        skipped_files=skipped,
+        file_results=file_results,
+        aggregated_summary=aggregated_summary,
+    )
+
+    if log_dir is not None:
+        from .formatters import format_dir_json, format_dir_markdown, format_dir_sarif
+        log_dir.mkdir(parents=True, exist_ok=True)
+        from datetime import datetime
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        (log_dir / f"{ts}_{scan_id[:8]}_dir_report.json").write_text(
+            format_dir_json(dir_report), encoding="utf-8"
+        )
+        (log_dir / f"{ts}_{scan_id[:8]}_dir_report.md").write_text(
+            format_dir_markdown(dir_report), encoding="utf-8"
+        )
+
+    return dir_report
+
+
+def _empty_report(fp: Path, mode: AuditMode) -> AuditReport:
+    """エラー時のプレースホルダーレポート"""
+    from .config import get_parameters
+    return AuditReport(
+        scan_id=str(uuid.uuid4()),
+        target_type="code",
+        tech_stack=[],
+        audit_mode=mode,
+        file_path=str(fp),
+        parameters=get_parameters(mode),
+        summary=AuditSummary(),
+        attack_surface=AttackSurfaceMap(),
+        issues=[],
+        static_analysis=StaticAnalysisResult(),
+    )
 
 
 def _build_summary(

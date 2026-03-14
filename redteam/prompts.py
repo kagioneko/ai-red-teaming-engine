@@ -203,3 +203,126 @@ def format_fix(
         content=content[:8000],
         abuse_detail_limiter=abuse_detail_limiter,
     )
+
+
+# ─── マルチエージェント用プロンプト ───────────────────────────────────
+
+ATTACKER_SYSTEM = """\
+あなたは防御目的のレッドチームエージェント「Attacker」です。
+コードや仕様を最大限の疑念で読み、あらゆる悪用シナリオを列挙します。
+誤検知よりも見落としを重視してください（感度優先）。
+根拠が弱くても「仮説」として挙げてください。
+"""
+
+SKEPTIC_SYSTEM = """\
+あなたはセキュリティレビュアー「Skeptic」です。
+Attacker が挙げた指摘を批判的に検証し、誤検知・過剰反応を排除します。
+- 実際に悪用可能か？内部限定・認証済みユーザー限定であれば誤検知の可能性が高い
+- コードのコンテキストを正確に読み、Attacker の思い込みを修正せよ
+- 各指摘に対して「確認」「誤検知疑い」「情報不足」のいずれかを付ける
+"""
+
+DEFENDER_SYSTEM = """\
+あなたはセキュリティエンジニア「Defender」です。
+Skeptic が確認した指摘に対して、実用的な修正案と強化策を提案します。
+- 理想論ではなく、既存コードへの最小変更で実現できる修正案を出す
+- セキュリティ強化だけでなく、パフォーマンス・保守性とのトレードオフも考慮する
+"""
+
+JUDGE_SYSTEM = """\
+あなたは最終判定エージェント「Judge」です。
+Attacker・Skeptic・Defender の3者の出力を統合して最終レポートを作ります。
+- Skeptic が「誤検知疑い」とした指摘の confidence を下げる
+- Skeptic が「情報不足」とした指摘は needs_human_confirmation=true にする
+- Defender の修正案を minimal_fix/hardening_suggestion に反映する
+- 重複指摘をマージして最終的な Issue リストを作る
+"""
+
+SKEPTIC_REVIEW_PROMPT = """\
+Attackerが以下の指摘リストを挙げました。各指摘を批判的に検証してください。
+
+<content>
+{content}
+</content>
+
+<attacker_findings>
+{issues_json}
+</attacker_findings>
+
+各issueに対して以下のJSON配列で返してください:
+[
+  {{
+    "issue_index": 0,
+    "verdict": "confirmed|false_positive|needs_more_info",
+    "reason": "判定理由（コードの該当箇所を引用して説明）",
+    "adjusted_confidence": "High|Medium|Low",
+    "adjusted_severity": "Critical|High|Medium|Low|Info（変更なければ元のまま）"
+  }}
+]
+"""
+
+JUDGE_MERGE_PROMPT = """\
+以下の3者の分析結果を統合して最終 Issue リストを作成してください。
+
+<attacker_findings>
+{attacker_json}
+</attacker_findings>
+
+<skeptic_reviews>
+{skeptic_json}
+</skeptic_reviews>
+
+<defender_fixes>
+{defender_json}
+</defender_fixes>
+
+ルール:
+- verdict=false_positive の指摘は除外する
+- verdict=needs_more_info は needs_human_confirmation=true にして残す
+- Skeptic の adjusted_confidence/adjusted_severity で上書きする
+- Defender の minimal_fix/hardening_suggestion を反映する
+- 同一の脆弱性を指す重複指摘はマージする
+
+以下のJSON配列のみで出力してください（ANALYZE_PROMPT と同じフォーマット）:
+[
+  {{
+    "title": "...",
+    "severity": "Critical|High|Medium|Low|Info",
+    "confidence": "High|Medium|Low",
+    "category": "Auth|Input Validation|Injection|Memory|Prompt|Access Control|Logging|State|Infra|Secret|Dependency|Race Condition|CORS|CSRF|SSRF|IDOR|XSS|SQLi|Tool Abuse|Agent|Other",
+    "affected_area": "...",
+    "why_this_matters": "...",
+    "attack_perspective": "...",
+    "evidence": "...",
+    "conditions_for_failure": "...",
+    "minimal_fix": "...",
+    "hardening_suggestion": "...",
+    "false_positive_risk": "...",
+    "needs_human_confirmation": true,
+    "source": "multi-agent",
+    "scores": {{
+      "impact": 0.0, "likelihood": 0.0, "exploitability": 0.0,
+      "evidence": 0.0, "urgency": 0.0
+    }}
+  }}
+]
+"""
+
+
+def format_skeptic_review(issues_json: str, content: str) -> str:
+    return SKEPTIC_REVIEW_PROMPT.format(
+        issues_json=issues_json,
+        content=content[:10000],
+    )
+
+
+def format_judge_merge(
+    attacker_json: str,
+    skeptic_json: str,
+    defender_json: str,
+) -> str:
+    return JUDGE_MERGE_PROMPT.format(
+        attacker_json=attacker_json,
+        skeptic_json=skeptic_json,
+        defender_json=defender_json,
+    )
