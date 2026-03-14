@@ -106,7 +106,7 @@ class Issue(BaseModel):
 
 class StaticFinding(BaseModel):
     """静的解析ツール 1件の結果（統一フォーマット）"""
-    tool:     Literal["semgrep", "gitleaks"]
+    tool:     Literal["semgrep", "gitleaks", "custom"]
     rule_id:  str
     severity: str
     message:  str

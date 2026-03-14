@@ -1,0 +1,91 @@
+# .redteam-rules.yaml — カスタムセキュリティルール定義ファイル
+#
+# このファイルを .redteam-rules.yaml にリネームして配置すると、
+# 静的解析レイヤーにカスタムルールが追加されます。
+#
+# 検索順序:
+#   1. --rules-file で明示指定
+#   2. 対象ファイル/ディレクトリと同じ場所の .redteam-rules.yaml
+#   3. カレントディレクトリの .redteam-rules.yaml
+#   4. ホームディレクトリ (~/.redteam-rules.yaml)
+
+rules:
+  # ─── コードインジェクション ───────────────────────────────────────────────
+  - id: CUS-001
+    name: "危険な eval 使用"
+    pattern: "eval\\s*\\("
+    severity: High
+    category: "Code Injection"
+    message: "eval() はコードインジェクションのリスクがあります。ast.literal_eval() または専用パーサーを使用してください。"
+    file_glob: "*.py"
+    enabled: true
+
+  - id: CUS-002
+    name: "exec() 使用"
+    pattern: "\\bexec\\s*\\("
+    severity: High
+    category: "Code Injection"
+    message: "exec() は任意コード実行のリスクがあります。"
+    file_glob: "*.py"
+    enabled: true
+
+  # ─── シークレット ─────────────────────────────────────────────────────────
+  - id: CUS-010
+    name: "ハードコードされた JWT シークレット"
+    pattern: "(?i)jwt[_\\s]?secret[\\s]*[=:][\\s]*['\"][^'\"]{8,}"
+    severity: Critical
+    category: "Secret Exposure"
+    message: "JWT シークレットがハードコードされています。環境変数に移してください。"
+    enabled: true
+
+  - id: CUS-011
+    name: "ハードコードされたパスワード"
+    pattern: "(?i)password[\\s]*=[\\s]*['\"][^'\"]{4,}"
+    severity: Critical
+    category: "Secret Exposure"
+    message: "パスワードがハードコードされています。シークレットマネージャーを使用してください。"
+    enabled: true
+
+  # ─── LLM / AI 固有リスク ─────────────────────────────────────────────────
+  - id: CUS-020
+    name: "ユーザー入力を直接プロンプトに埋め込み"
+    pattern: "f['\"].*\\{.*user.*\\}.*['\"]"
+    severity: High
+    category: "Prompt Injection"
+    message: "ユーザー入力を f-string でプロンプトに直接埋め込んでいます。サニタイズまたはエスケープしてください。"
+    file_glob: "*.py"
+    enabled: true
+
+  - id: CUS-021
+    name: "system_prompt の上書きリスク"
+    pattern: "system_prompt\\s*\\+?=\\s*.*user"
+    severity: Medium
+    category: "Prompt Injection"
+    message: "system_prompt にユーザー由来の文字列を連結しています。プロンプトインジェクションのリスクがあります。"
+    enabled: true
+
+  # ─── 安全でない設定 ───────────────────────────────────────────────────────
+  - id: CUS-030
+    name: "デバッグモード有効化"
+    pattern: "DEBUG\\s*=\\s*True|debug\\s*=\\s*True"
+    severity: Medium
+    category: "Insecure Configuration"
+    message: "デバッグモードが有効です。本番環境では必ず False に設定してください。"
+    enabled: true
+
+  - id: CUS-031
+    name: "TLS 検証無効化"
+    pattern: "verify\\s*=\\s*False|ssl_verify\\s*=\\s*False|VERIFY_SSL\\s*=\\s*False"
+    severity: High
+    category: "Insecure Configuration"
+    message: "TLS/SSL 証明書の検証が無効化されています。MITM 攻撃に対して脆弱になります。"
+    enabled: true
+
+  # ─── 無効化例（enabled: false でスキップ）────────────────────────────────
+  - id: CUS-099
+    name: "TODO コメント検出"
+    pattern: "#\\s*TODO"
+    severity: Info
+    category: "Code Quality"
+    message: "TODO コメントが残っています。"
+    enabled: false

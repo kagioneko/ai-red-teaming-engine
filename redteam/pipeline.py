@@ -54,6 +54,7 @@ def run_audit(
     backend: str = "api",
     log_dir: Path | None = None,
     ignore_rules: IgnoreRules | None = None,
+    rules_file: Path | None = None,
 ) -> AuditReport:
     """
     メイン監査パイプライン。
@@ -80,6 +81,7 @@ def run_audit(
             content=normalized.masked_content,
             file_path=audit_input.file_path,
             target_type=normalized.target_type,
+            rules_file=rules_file,
         )
     elif enable_static:
         # ファイルパスなしの場合もコンテンツから静的解析を実行
@@ -87,6 +89,7 @@ def run_audit(
             content=normalized.masked_content,
             file_path="",
             target_type=normalized.target_type,
+            rules_file=rules_file,
         )
 
     # ── Layer 3: Adversarial Analysis ────────────────────────────────

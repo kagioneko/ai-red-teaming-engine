@@ -192,6 +192,12 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
     help=".redteam-ignore ファイルのパス（省略時はカレント→対象ディレクトリを自動検索）",
 )
 @click.option(
+    "--rules-file",
+    "rules_file",
+    default=None,
+    help=".redteam-rules.yaml のパス（省略時は対象ディレクトリ→カレント→~/ を自動検索）",
+)
+@click.option(
     "--fail-on",
     default=None,
     type=click.Choice(["Critical", "High", "Medium", "Low", "Info"]),
@@ -228,11 +234,12 @@ def main(
     baseline: str | None,
     save_baseline: str | None,
     ignore_file: str | None,
+    rules_file: str | None,
     fail_on: str | None,
     save_log: bool,
 ) -> None:
     """
-    AI-Red-Teaming-Engine — 防御目的の敵対的セキュリティ監査エンジン (v0.2)
+    AI-Red-Teaming-Engine — 防御目的の敵対的セキュリティ監査エンジン (v0.4)
 
     ⚠️  このツールはプロトタイプ版です。全ての指摘は人間による最終確認が必要です。
     """
@@ -397,7 +404,8 @@ def main(
             no_static=no_static, severity_filter=severity_filter,
             system_overview=system_overview, exposure=exposure,
             ext=ext, baseline=baseline, save_baseline=save_baseline,
-            ignore_file=ignore_file, fail_on=None,  # watch中はfail_onを無効化
+            ignore_file=ignore_file, rules_file=rules_file,
+            fail_on=None,  # watch中はfail_onを無効化
             save_log=save_log,
         )
 
@@ -588,6 +596,7 @@ def main(
             backend=selected_backend,
             log_dir=LOG_DIR if save_log else None,
             ignore_rules=rules,
+            rules_file=Path(rules_file) if rules_file else None,
         )
     except EnvironmentError as e:
         click.echo(f"設定エラー: {e}", err=True)

@@ -1,4 +1,4 @@
-"""静的解析ツール連携 (Semgrep / Gitleaks) — Analysis Layer"""
+"""静的解析ツール連携 (Semgrep / Gitleaks / カスタムルール) — Analysis Layer"""
 from __future__ import annotations
 
 import json
@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from .models import StaticFinding, StaticAnalysisResult
+from .custom_rules import run_custom_rules
 
 
 def _tool_available(name: str) -> bool:
@@ -121,6 +122,7 @@ def run_static_analysis(
     content: str,
     file_path: str = "",
     target_type: str = "code",
+    rules_file: Path | None = None,
 ) -> StaticAnalysisResult:
     """
     コード文字列に対して静的解析を実行する。
@@ -157,6 +159,13 @@ def run_static_analysis(
         result.findings.extend(gitleaks_findings)
         if gitleaks_err:
             result.error_messages.append(f"[gitleaks] {gitleaks_err}")
+
+        # カスタムルール（.redteam-rules.yaml）
+        custom_findings, custom_warnings = run_custom_rules(
+            content, file_path or str(tmp_path), rules_file=rules_file
+        )
+        result.findings.extend(custom_findings)
+        result.error_messages.extend(custom_warnings)
 
     finally:
         tmp_path.unlink(missing_ok=True)
