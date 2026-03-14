@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-red-teaming-engine"
+version = "0.2.0"
+description = "防御目的の敵対的セキュリティ監査エンジン — LLM + 静的解析でコード・仕様書・AIエージェントを攻撃者視点でレビュー"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["security", "red-team", "llm", "static-analysis", "sarif", "ai-safety"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Security",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "click>=8.0",
+    "pydantic>=2.0",
+    "anthropic>=0.25",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "hatch",
+]
+
+[project.scripts]
+redteam-scan = "redteam.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kagioneko/ai-red-teaming-engine"
+Repository = "https://github.com/kagioneko/ai-red-teaming-engine"
+Issues = "https://github.com/kagioneko/ai-red-teaming-engine/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["redteam"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["redteam"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
