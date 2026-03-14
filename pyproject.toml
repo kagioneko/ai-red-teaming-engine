@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-red-teaming-engine"
-version = "0.2.0"
+version = "0.4.0"
 description = "防御目的の敵対的セキュリティ監査エンジン — LLM + 静的解析でコード・仕様書・AIエージェントを攻撃者視点でレビュー"
 readme = "README.md"
 license = { text = "MIT" }
@@ -32,9 +32,13 @@ dev = [
     "pytest-cov>=4.0",
     "hatch",
 ]
+dashboard = [
+    "flask>=3.0",
+]
 
 [project.scripts]
 redteam-scan = "redteam.cli:main"
+redteam-dashboard = "redteam.dashboard:run"
 
 [project.urls]
 Homepage = "https://github.com/kagioneko/ai-red-teaming-engine"
