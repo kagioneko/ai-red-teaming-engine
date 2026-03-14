@@ -32,6 +32,7 @@ from redteam.ignorer import IgnoreRules, load_ignore_rules
 from redteam.multi_agent import run_multi_agent_audit
 from redteam.prompt_injection import format_injection_markdown, run_injection_simulation
 from redteam.memory_poisoning import format_memory_poison_markdown, run_memory_poison_test
+from redteam.watcher import watch
 from redteam.formatters import (
     format_compare_markdown,
     format_dir_json,
@@ -130,6 +131,12 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
     help="Memory Poisoning 耐性試験を実行（--file 時のみ。エージェント・RAGコードに有効）",
 )
 @click.option(
+    "--watch", "watch_mode",
+    is_flag=True,
+    default=False,
+    help="ファイル変更を監視して自動再監査（--file / --dir と組み合わせて使用）",
+)
+@click.option(
     "--compare-backends", "compare_backends_str",
     default=None,
     help="比較するバックエンドをカンマ区切りで指定（例: claude,gemini）",
@@ -210,6 +217,7 @@ def main(
     injection_test: bool,
     injection_types: str | None,
     memory_poison: bool,
+    watch_mode: bool,
     compare_backends_str: str | None,
     model: str,
     no_static: bool,
@@ -368,6 +376,53 @@ def main(
             click.echo(f"   {b} のみ: {len(only)} 件", err=True)
         if save_log:
             click.echo(f"📁 ログ保存先: {LOG_DIR}/", err=True)
+        return
+
+    # ─── watch モード ───────────────────────────────────────────────────
+    if watch_mode:
+        target = Path(dir_path or file_path)  # type: ignore
+        if not target.exists():
+            click.echo(f"エラー: パスが見つかりません: {target}", err=True)
+            sys.exit(1)
+
+        # 現在のオプションを保持して再実行するクロージャ
+        _run_opts = dict(
+            file_path=file_path, dir_path=dir_path,
+            mode=mode, target_type=target_type, tech_stack=tech_stack,
+            output_format=output_format, output=output, backend=backend,
+            compare=False, multi_agent=multi_agent,
+            injection_test=injection_test, injection_types=injection_types,
+            memory_poison=memory_poison, watch_mode=False,
+            compare_backends_str=compare_backends_str, model=model,
+            no_static=no_static, severity_filter=severity_filter,
+            system_overview=system_overview, exposure=exposure,
+            ext=ext, baseline=baseline, save_baseline=save_baseline,
+            ignore_file=ignore_file, fail_on=None,  # watch中はfail_onを無効化
+            save_log=save_log,
+        )
+
+        def _on_change(changed_path: Path) -> None:
+            click.echo(f"\n🔄 変更検知: {changed_path}", err=True)
+            click.echo(f"   {changed_path.name} を再監査中...", err=True)
+            try:
+                # ファイル監視時は変更ファイルを直接監査、ディレクトリ監視はdir全体
+                opts = dict(_run_opts)
+                if dir_path:
+                    opts["dir_path"] = dir_path
+                    opts["file_path"] = None
+                else:
+                    opts["file_path"] = str(changed_path)
+                    opts["dir_path"] = None
+                ctx = click.Context(main)
+                ctx.invoke(main, **opts)
+            except SystemExit:
+                pass
+            except Exception as e:
+                click.echo(f"  ⚠️  監査エラー: {e}", err=True)
+
+        # 初回は即実行
+        _on_change(target)
+        watch(target, _on_change)
         return
 
     # ─── Prompt Injection シミュレーション ─────────────────────────────
