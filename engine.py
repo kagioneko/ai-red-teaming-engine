@@ -32,6 +32,7 @@ from redteam.ignorer import IgnoreRules, load_ignore_rules
 from redteam.multi_agent import run_multi_agent_audit
 from redteam.prompt_injection import format_injection_markdown, run_injection_simulation
 from redteam.memory_poisoning import format_memory_poison_markdown, run_memory_poison_test
+from redteam.immune_system import format_immune_markdown, run_immune_simulation
 from redteam.watcher import watch
 from redteam.formatters import (
     format_compare_markdown,
@@ -131,6 +132,12 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
     help="Memory Poisoning 耐性試験を実行（--file 時のみ。エージェント・RAGコードに有効）",
 )
 @click.option(
+    "--immune-test",
+    is_flag=True,
+    default=False,
+    help="AI-Immune-System シミュレーションを実行（--file 時のみ。NeuroState で免疫応答をシミュレート）",
+)
+@click.option(
     "--watch", "watch_mode",
     is_flag=True,
     default=False,
@@ -223,6 +230,7 @@ def main(
     injection_test: bool,
     injection_types: str | None,
     memory_poison: bool,
+    immune_test: bool,
     watch_mode: bool,
     compare_backends_str: str | None,
     model: str,
@@ -399,7 +407,7 @@ def main(
             output_format=output_format, output=output, backend=backend,
             compare=False, multi_agent=multi_agent,
             injection_test=injection_test, injection_types=injection_types,
-            memory_poison=memory_poison, watch_mode=False,
+            memory_poison=memory_poison, immune_test=immune_test, watch_mode=False,
             compare_backends_str=compare_backends_str, model=model,
             no_static=no_static, severity_filter=severity_filter,
             system_overview=system_overview, exposure=exposure,
@@ -503,6 +511,47 @@ def main(
             err=True,
         )
         _check_fail_on(fail_on, {mp_report.overall_risk: 1} if mp_report.overall_risk != "Info" else {})
+        return
+
+    # ─── AI-Immune-System シミュレーション ──────────────────────────────
+    if immune_test:
+        if dir_path:
+            click.echo("エラー: --immune-test は --file 指定時のみ有効です。", err=True)
+            sys.exit(1)
+        target = Path(file_path)  # type: ignore
+        if not target.exists():
+            click.echo(f"エラー: ファイルが見つかりません: {file_path}", err=True)
+            sys.exit(1)
+        content = target.read_text(encoding="utf-8", errors="replace")
+        immune_payload_types: list[str] | None = (
+            [t.strip() for t in injection_types.split(",")] if injection_types else None
+        )
+        click.echo(
+            f"🛡️  AI-Immune-System シミュレーション開始: {file_path} (backend={selected_backend})",
+            err=True,
+        )
+        try:
+            immune_report = run_immune_simulation(
+                content=content,
+                file_path=str(target.resolve()),
+                model=model,
+                backend=selected_backend,
+                payload_types=immune_payload_types,
+                log_dir=LOG_DIR if save_log else None,
+            )
+        except Exception as e:
+            click.echo(f"AI-Immune-System テストエラー: {e}", err=True)
+            raise
+        result_text = format_immune_markdown(immune_report)
+        _write_output(result_text, output)
+        click.echo(
+            f"\n🛡️  結果: 遮断={immune_report.blocked_count}/{immune_report.total_payloads} / "
+            f"有効性スコア={immune_report.effectiveness_score:.1f} / "
+            f"迂回リスク={immune_report.bypass_risk} / "
+            f"最終モード={immune_report.final_mode}",
+            err=True,
+        )
+        _check_fail_on(fail_on, {immune_report.bypass_risk: 1} if immune_report.bypass_risk != "Info" else {})
         return
 
     # ─── マルチエージェント監査 ─────────────────────────────────────────
