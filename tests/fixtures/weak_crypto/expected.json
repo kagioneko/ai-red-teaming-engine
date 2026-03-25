@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Cryptography",
+      "severity": "Medium",
+      "description": "脆弱な暗号利用",
+      "line_hint": 14
+    }
+  ]
+}

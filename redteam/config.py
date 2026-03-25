@@ -60,3 +60,39 @@ PARAMETER_DOCS = {
 
 def get_parameters(mode: AuditMode) -> AuditParameters:
     return PRESETS[mode]
+
+
+# ─── スキャンプリセット ────────────────────────────────────────────────────────
+
+SCAN_PRESETS: dict[str, dict] = {
+    "thorough": {
+        "use_cache":        True,
+        "use_triage":       False,   # 全チャンクをSonnetで深掘り
+        "ai_triage_bypass": True,    # trueだが use_triage=False なので無意味（明示のみ）
+        "description":      "最高精度。トリアージなし、全チャンクをSonnetで深掘り。AIエージェント系の脆弱性も最大感度。",
+    },
+    "balanced": {
+        "use_cache":        True,
+        "use_triage":       True,    # Haikuでトリアージ
+        "ai_triage_bypass": True,    # AIコードはトリアージスキップ→Sonnet強制
+        "description":      "速度とAI脆弱性検出を両立。（デフォルト）通常コードはHaikuで絞り込み、AIコードは必ずSonnetで深掘り。",
+    },
+    "fast": {
+        "use_cache":        True,
+        "use_triage":       True,    # Haikuでトリアージ
+        "ai_triage_bypass": False,   # AIコードもHaikuでトリアージ（速いがAI脆弱性を見逃す可能性あり）
+        "description":      "最速。AIエージェント特有の脆弱性（プロンプトインジェクション等）の検出精度は一部低下。",
+    },
+}
+
+DEFAULT_PRESET = "balanced"
+
+
+def get_scan_preset(name: str) -> dict:
+    preset = SCAN_PRESETS.get(name)
+    if preset is None:
+        raise ValueError(
+            f"未知のプリセット: {name!r}\n"
+            f"使用可能: {', '.join(SCAN_PRESETS)}"
+        )
+    return preset

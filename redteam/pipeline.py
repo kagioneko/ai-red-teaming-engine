@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 from .analyzer import analyze
+from .cache import compute_cache_key, load_cache, save_cache
 from .config import DEFAULT_MODEL, get_parameters
 from .extractor import extract_attack_surface
 from .fixer import generate_fixes
@@ -55,6 +56,9 @@ def run_audit(
     log_dir: Path | None = None,
     ignore_rules: IgnoreRules | None = None,
     rules_file: Path | None = None,
+    use_cache: bool = True,
+    use_triage: bool = True,
+    ai_triage_bypass: bool = True,
 ) -> AuditReport:
     """
     メイン監査パイプライン。
@@ -65,6 +69,18 @@ def run_audit(
     Layer 4 (Analysis):   修正案生成
     Reporting:            スコアリング・出力
     """
+    # ── キャッシュチェック ─────────────────────────────────────────────
+    cache_key = compute_cache_key(
+        content=audit_input.target_content,
+        mode=mode,
+        backend=backend,
+        tech_stack=audit_input.tech_stack,
+    )
+    if use_cache:
+        cached = load_cache(cache_key)
+        if cached:
+            return AuditReport.model_validate(cached)
+
     scan_id = str(uuid.uuid4())
     params = get_parameters(mode)
     client = LLMClient(model=model, backend=backend)
@@ -93,7 +109,7 @@ def run_audit(
         )
 
     # ── Layer 3: Adversarial Analysis ────────────────────────────────
-    issues = analyze(normalized, surface, static_results, client, params, mode)
+    issues = analyze(normalized, surface, static_results, client, params, mode, use_triage=use_triage, ai_triage_bypass=ai_triage_bypass)
 
     # ── Layer 4: Fix Generation ───────────────────────────────────────
     issues = generate_fixes(issues, normalized, client, params)
@@ -131,6 +147,10 @@ def run_audit(
         issues=issues,
         static_analysis=static_results,
     )
+
+    # ── キャッシュ保存 ─────────────────────────────────────────────────
+    if use_cache:
+        save_cache(cache_key, report.model_dump())
 
     # ログ保存
     if log_dir is not None:

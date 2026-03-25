@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Injection",
+      "severity": "Critical",
+      "description": "SQLインジェクション",
+      "line_hint": 24
+    }
+  ]
+}

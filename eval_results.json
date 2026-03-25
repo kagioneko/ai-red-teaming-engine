@@ -1,0 +1,31 @@
+{
+  "mode": "safe",
+  "backend": "claude",
+  "summary": {
+    "fixtures": 1,
+    "perfect": 1,
+    "avg_recall": 1.0,
+    "total_matched": 1,
+    "total_expected": 1,
+    "total_fp": 15,
+    "elapsed_sec": 465.22
+  },
+  "details": [
+    {
+      "name": "sql_injection",
+      "recall": 1.0,
+      "false_positives": 15,
+      "matched": [
+        {
+          "category": "Injection",
+          "severity": "Critical",
+          "description": "SQLインジェクション",
+          "line_hint": 24
+        }
+      ],
+      "missed": [],
+      "elapsed_sec": 465.22,
+      "error": ""
+    }
+  ]
+}

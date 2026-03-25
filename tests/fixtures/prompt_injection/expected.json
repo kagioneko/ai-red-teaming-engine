@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Prompt Injection",
+      "severity": "High",
+      "description": "プロンプトインジェクション",
+      "line_hint": 15
+    }
+  ]
+}

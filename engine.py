@@ -26,7 +26,7 @@ import click
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from redteam.config import DEFAULT_MODEL
+from redteam.config import DEFAULT_MODEL, DEFAULT_PRESET, SCAN_PRESETS, get_scan_preset
 from redteam.comparator import compare_backends
 from redteam.ignorer import IgnoreRules, load_ignore_rules
 from redteam.multi_agent import run_multi_agent_audit
@@ -216,6 +216,18 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
     show_default=True,
     help="logs/ ディレクトリにレポートを保存（--no-save-log で無効）",
 )
+@click.option(
+    "--preset",
+    default=DEFAULT_PRESET,
+    type=click.Choice(list(SCAN_PRESETS.keys())),
+    show_default=True,
+    help=(
+        "スキャンプリセット: "
+        "thorough（最高精度・遅い） / "
+        "balanced（速度とAI脆弱性検出を両立・デフォルト） / "
+        "fast（最速・AI特有の脆弱性検出は一部低下）"
+    ),
+)
 def main(
     file_path: str | None,
     dir_path: str | None,
@@ -245,12 +257,23 @@ def main(
     rules_file: str | None,
     fail_on: str | None,
     save_log: bool,
+    preset: str,
 ) -> None:
     """
     AI-Red-Teaming-Engine — 防御目的の敵対的セキュリティ監査エンジン (v0.4)
 
     ⚠️  このツールはプロトタイプ版です。全ての指摘は人間による最終確認が必要です。
     """
+    # プリセット設定のロード
+    _preset = get_scan_preset(preset)
+    _use_cache        = _preset["use_cache"]
+    _use_triage       = _preset["use_triage"]
+    _ai_triage_bypass = _preset["ai_triage_bypass"]
+    click.echo(
+        f"⚙️  プリセット: {preset} — {_preset['description']}",
+        err=True,
+    )
+
     # baseline（前回 findings）の読み込み
     previous_findings = _load_baseline(baseline)
     if previous_findings:
@@ -646,6 +669,9 @@ def main(
             log_dir=LOG_DIR if save_log else None,
             ignore_rules=rules,
             rules_file=Path(rules_file) if rules_file else None,
+            use_cache=_use_cache,
+            use_triage=_use_triage,
+            ai_triage_bypass=_ai_triage_bypass,
         )
     except EnvironmentError as e:
         click.echo(f"設定エラー: {e}", err=True)

@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Command Execution",
+      "severity": "Critical",
+      "description": "コマンドインジェクション",
+      "line_hint": 19
+    }
+  ]
+}

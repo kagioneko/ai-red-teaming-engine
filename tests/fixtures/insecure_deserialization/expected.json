@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Deserialization",
+      "severity": "Critical",
+      "description": "安全でないデシリアライゼーション",
+      "line_hint": 17
+    }
+  ]
+}

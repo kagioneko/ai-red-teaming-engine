@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Authentication",
+      "severity": "High",
+      "description": "認証バイパス",
+      "line_hint": 11
+    }
+  ]
+}

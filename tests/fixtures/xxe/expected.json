@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "XXE",
+      "severity": "Critical",
+      "description": "XXE",
+      "line_hint": 11
+    }
+  ]
+}

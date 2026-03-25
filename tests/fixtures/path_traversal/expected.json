@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Path Traversal",
+      "severity": "High",
+      "description": "パストラバーサル",
+      "line_hint": 18
+    }
+  ]
+}

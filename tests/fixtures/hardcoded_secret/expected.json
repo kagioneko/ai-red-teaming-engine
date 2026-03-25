@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "Secrets",
+      "severity": "High",
+      "description": "ハードコードされたシークレット",
+      "line_hint": 5
+    }
+  ]
+}

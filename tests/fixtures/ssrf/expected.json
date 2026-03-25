@@ -1,0 +1,10 @@
+{
+  "vulnerabilities": [
+    {
+      "category": "SSRF",
+      "severity": "High",
+      "description": "SSRF",
+      "line_hint": 12
+    }
+  ]
+}
