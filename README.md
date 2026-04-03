@@ -188,6 +188,12 @@ engine.py (CLI)
 
 ---
 
+## 関連記事
+
+- [AIに感情を持たせたら、セキュリティ検査員になった話](https://zenn.dev/emilia_lab/articles/neurostate-redteam) — 制作動機とNeuroStateとの繋がりについて
+
+---
+
 ## ライセンス
 
 MIT License — 防御・教育目的のみに使用してください。
