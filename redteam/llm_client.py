@@ -24,6 +24,21 @@ T = TypeVar("T", bound=BaseModel)
 _MAX_RETRIES = 2
 _RETRY_DELAY = 2.0
 
+# レートリミット検知キーワード（Claude/Gemini/Codex CLI のエラーメッセージ）
+_RATE_LIMIT_SIGNALS = (
+    "rate limit",
+    "too many requests",
+    "429",
+    "overloaded",
+    "quota exceeded",
+    "resource exhausted",
+)
+
+
+def _is_rate_limited(stdout: str, stderr: str) -> bool:
+    combined = (stdout + stderr).lower()
+    return any(sig in combined for sig in _RATE_LIMIT_SIGNALS)
+
 
 class LLMClient:
     """
@@ -158,9 +173,20 @@ class _CLIBackend(_BackendBase):
                     timeout=180,
                 )
                 output = result.stdout.strip()
-                if not output and result.stderr:
-                    # stderrにも出力がある場合（一部ツールはここに出す）
-                    output = result.stderr.strip()
+                stderr = result.stderr.strip()
+
+                # レートリミット検知 → エクスポネンシャルバックオフでリトライ
+                if _is_rate_limited(output, stderr):
+                    wait = _RETRY_DELAY * (2 ** attempt)
+                    if attempt < _MAX_RETRIES:
+                        time.sleep(wait)
+                        continue
+                    raise RuntimeError(
+                        f"{self._name} がレートリミットに達しました（{_MAX_RETRIES + 1}回試行）"
+                    )
+
+                if not output and stderr:
+                    output = stderr
                 return output
             except subprocess.TimeoutExpired:
                 if attempt < _MAX_RETRIES:

@@ -174,6 +174,7 @@ def main() -> None:
     parser.add_argument("--mode", default="deep", choices=["safe", "deep", "agent-audit", "patch"])
     parser.add_argument("--backend", default="api", help="LLMバックエンド (api/claude/gemini)")
     parser.add_argument("--fixture", default="", help="特定フィクスチャのみ実行 (例: sql_injection)")
+    parser.add_argument("--interval", type=int, default=60, help="フィクスチャ間の待機秒数（レートリミット回避）")
     args = parser.parse_args()
 
     # 実行対象フィクスチャ一覧
@@ -190,7 +191,13 @@ def main() -> None:
     print(f"mode={args.mode}  backend={args.backend}  fixtures={len(names)}件")
 
     results: list[FixtureResult] = []
-    for name in names:
+    for i, name in enumerate(names):
+        if i > 0:
+            # Claude CLI のレートリミット回避のためフィクスチャ間に待機
+            wait = args.interval
+            print(f"  ⏳ {wait}秒待機中...", end="", flush=True)
+            time.sleep(wait)
+            print(f" 再開")
         print(f"  → {name} ...", end="", flush=True)
         r = run_fixture(name, mode=args.mode, backend=args.backend)
         results.append(r)
