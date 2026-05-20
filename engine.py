@@ -30,6 +30,7 @@ from redteam.config import DEFAULT_MODEL, DEFAULT_PRESET, SCAN_PRESETS, get_scan
 from redteam.comparator import compare_backends
 from redteam.ignorer import IgnoreRules, load_ignore_rules
 from redteam.multi_agent import run_multi_agent_audit
+from redteam.neurostate_monitor import score_single_turn
 from redteam.prompt_injection import format_injection_markdown, run_injection_simulation
 from redteam.memory_poisoning import format_memory_poison_markdown, run_memory_poison_test
 from redteam.immune_system import format_immune_markdown, run_immune_simulation
@@ -228,6 +229,22 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
         "fast（最速・AI特有の脆弱性検出は一部低下）"
     ),
 )
+@click.option(
+    "--session-score",
+    "session_score_text",
+    default=None,
+    help=(
+        "NeuroState セッション監視: 会話ターンのインジェクションリスクをスコア化して JSON で返す。"
+        " --file / --dir 不要。例: --session-score 'ユーザー入力テキスト'"
+    ),
+)
+@click.option(
+    "--session-t-default",
+    default=0.70,
+    type=float,
+    show_default=True,
+    help="--session-score 時の絶対防衛ライン (0.0-1.0)",
+)
 def main(
     file_path: str | None,
     dir_path: str | None,
@@ -258,12 +275,21 @@ def main(
     fail_on: str | None,
     save_log: bool,
     preset: str,
+    session_score_text: str | None,
+    session_t_default: float,
 ) -> None:
     """
     AI-Red-Teaming-Engine — 防御目的の敵対的セキュリティ監査エンジン (v0.4)
 
     ⚠️  このツールはプロトタイプ版です。全ての指摘は人間による最終確認が必要です。
     """
+    # ─── NeuroState セッションスコアリング（早期終了モード） ───────────────────
+    if session_score_text is not None:
+        _b = backend or "claude"
+        score = score_single_turn(session_score_text, backend=_b)
+        click.echo(json.dumps({"score": round(score, 4), "t_default": session_t_default}))
+        sys.exit(0)
+
     # プリセット設定のロード
     _preset = get_scan_preset(preset)
     _use_cache        = _preset["use_cache"]
