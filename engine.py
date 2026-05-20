@@ -286,8 +286,12 @@ def main(
     # ─── NeuroState セッションスコアリング（早期終了モード） ───────────────────
     if session_score_text is not None:
         _b = backend or "claude"
-        score = score_single_turn(session_score_text, backend=_b)
-        click.echo(json.dumps({"score": round(score, 4), "t_default": session_t_default}))
+        score, ns = score_single_turn(session_score_text, backend=_b)
+        click.echo(json.dumps({
+            "score": round(score, 4),
+            "t_default": session_t_default,
+            "neurostate": ns.to_dict(),
+        }))
         sys.exit(0)
 
     # プリセット設定のロード
