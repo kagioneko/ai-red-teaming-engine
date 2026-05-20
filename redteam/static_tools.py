@@ -11,18 +11,24 @@ from .models import StaticFinding, StaticAnalysisResult
 from .custom_rules import run_custom_rules
 
 
-def _tool_available(name: str) -> bool:
-    return shutil.which(name) is not None
+def _tool_available(name: str) -> str | None:
+    """ツールのフルパスを返す。見つからない場合はNone。PATHに加え~/.local/binも探す。"""
+    found = shutil.which(name)
+    if found:
+        return found
+    local_bin = Path.home() / ".local" / "bin" / name
+    return str(local_bin) if local_bin.exists() else None
 
 
 def run_semgrep(file_path: Path) -> tuple[list[StaticFinding], str | None]:
     """Semgrepを実行し、結果をStaticFindingリストで返す"""
-    if not _tool_available("semgrep"):
-        return [], "semgrep not installed"
+    semgrep_bin = _tool_available("semgrep")
+    if not semgrep_bin:
+        return [], "semgrep not installed (pip install semgrep)"
 
     try:
         result = subprocess.run(
-            ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(file_path)],
+            [semgrep_bin, "scan", "--config", "auto", "--json", "--quiet", str(file_path)],
             capture_output=True,
             text=True,
             timeout=120,
@@ -63,7 +69,8 @@ def run_gitleaks(file_path: Path) -> tuple[list[StaticFinding], str | None]:
     Gitleaksでシークレット検出を実行する。
     単一ファイルの場合は一時ディレクトリにコピーして検査する。
     """
-    if not _tool_available("gitleaks"):
+    gitleaks_bin = _tool_available("gitleaks")
+    if not gitleaks_bin:
         return [], "gitleaks not installed"
 
     try:
@@ -75,7 +82,7 @@ def run_gitleaks(file_path: Path) -> tuple[list[StaticFinding], str | None]:
 
             result = subprocess.run(
                 [
-                    "gitleaks", "detect",
+                    gitleaks_bin, "detect",
                     "--source", tmpdir,
                     "--no-git",
                     "--report-format", "json",
