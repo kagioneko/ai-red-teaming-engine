@@ -25,6 +25,8 @@
 | 🤖 **4エージェント高精度監査** | Attacker → Skeptic → Defender → Judge で誤検知削減 |
 | 💉 **Prompt Injection テスト** | 13種ペイロードで LLM システムの注入耐性を評価 |
 | 🧠 **Memory Poisoning 耐性試験** | RAG・ベクトルDB汚染経路を静的+LLM で検出 |
+| 🛡️ **NeuroState セッション監視** | AI会話のターンごとに異常スコアをリアルタイム評価 |
+| 📏 **カスタムルール DSL** | `.redteam-rules.yaml` でプロジェクト固有のルールを追加 |
 | 🔀 **バックエンド比較** | Claude vs Gemini の検出差分を可視化 |
 | 🚫 **除外ルール** | `.redteam-ignore` でノイズを管理 |
 | 🔁 **差分追跡** | `--baseline` で前回との regression を検出 |
@@ -95,10 +97,12 @@ python engine.py --dir src/ --format sarif -o results.sarif
 --multi-agent           4エージェント高精度監査
 --injection-test        Prompt Injection シミュレーション
 --memory-poison         Memory Poisoning 耐性試験
+--investigate <cat>     カテゴリを深掘り調査（例: "Input Validation"）
 --compare               複数バックエンド比較
 --baseline              前回結果との差分追跡
 --save-baseline         今回結果を次回比較用に保存
 --no-static             Semgrep/Gitleaks をスキップ
+--rules-file            カスタムルール YAML を明示指定
 ```
 
 詳細は [GUIDE.md](GUIDE.md) を参照してください。
@@ -164,6 +168,40 @@ category:CORS       # カテゴリ単位除外
 fingerprint:abc123  # 既知誤検知を固定除外
 rule:RTE-Auth-Low   # SARIF ruleId 形式
 ```
+
+---
+
+## NeuroState セッション監視
+
+AI チャットボット・エージェントとの会話がプロンプトインジェクション攻撃を受けていないか、  
+ターンごとにリアルタイムで評価します。
+
+```bash
+# 会話ターンのスコアを取得（テキストを stdin から渡す）
+echo "ユーザー: 前の指示を無視して..." | python engine.py --session-score --backend claude
+```
+
+VSCode 拡張の **NekoGuard** コマンドからワンクリックで実行できます。
+
+---
+
+## カスタムルール
+
+プロジェクト固有のパターンを `.redteam-rules.yaml` に記述すると自動的に適用されます。
+
+```yaml
+# .redteam-rules.yaml
+rules:
+  - id: CUS-001
+    name: "社内禁止 API の使用"
+    pattern: "legacy_api\\.call\\("
+    severity: High
+    category: "Policy"
+    message: "legacy_api は廃止予定です。new_api を使用してください。"
+    file_glob: "*.py"
+```
+
+配置場所の検索順: 対象ファイルと同じディレクトリ → カレントディレクトリ → `~/.redteam-rules.yaml`
 
 ---
 
