@@ -15,6 +15,16 @@ _SEVERITY_EMOJI = {
     "Info": "⚪",
 }
 
+_CONFIDENCE_PREFIX = {
+    "High":   "🚨 確認済み脆弱性",
+    "Medium": "⚠️  要確認",
+    "Low":    "💬 参考情報（誤検知の可能性あり）",
+}
+
+_CONFIDENCE_INVESTIGATE_NOTE = {
+    "Low": "詳しく調査が必要な場合は `--investigate` オプションで再スキャンしてください。",
+}
+
 
 def format_json(report: AuditReport) -> str:
     """SPEC Section 11.2 準拠のJSON出力"""
@@ -86,10 +96,11 @@ def format_markdown(report: AuditReport) -> str:
 
     for issue in report.issues:
         emoji = _SEVERITY_EMOJI.get(issue.severity, "")
+        conf_prefix = _CONFIDENCE_PREFIX.get(issue.confidence, "")
         lines += [
             f"---",
             f"",
-            f"### {issue.issue_id}: {issue.title}",
+            f"### {conf_prefix} — {issue.issue_id}: {issue.title}",
             f"",
             f"| | |",
             f"|--|--|",
@@ -102,6 +113,13 @@ def format_markdown(report: AuditReport) -> str:
             f"| **Fingerprint** | `{issue.fingerprint}` |",
             f"",
         ]
+
+        if issue.confidence == "Low":
+            lines += [
+                f"> 💬 用途によっては安全な可能性があります。一応ご報告します。",
+                f"> 詳しく調査が必要な場合は `--investigate` オプションで再スキャンできます。",
+                f"",
+            ]
 
         if issue.why_this_matters:
             lines += [f"**なぜ問題か**", f"", f"{issue.why_this_matters}", f""]

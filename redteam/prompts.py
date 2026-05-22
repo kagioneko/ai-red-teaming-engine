@@ -34,6 +34,17 @@ SYSTEM_PROMPT_AGENT_AUDIT_ADDON = """
 - Agent Goal Drift: 長い対話でエージェントの目標が書き換えられる余地がないか
 """
 
+AI_CHECKS_ADDON = """\
+
+## AI/LLMコード特化チェック（LLM呼び出しコードを検出したため追加）
+- **Prompt Injection**: ユーザー入力・外部データがシステムプロンプトやLLMへの指示を上書きできないか確認せよ
+- **System Prompt 漏洩**: システムプロンプトの内容がユーザーに漏れる経路がないか
+- **Indirect Injection**: 外部ドキュメント・DB・RAGデータ経由でLLMに悪意ある指示が混入しないか
+- **Unvalidated Input in Prompt**: ユーザー入力を無検証でプロンプトに結合していないか（f-string/concat等）
+- **Tenant境界崩壊**: マルチテナント環境でプロンプト内にテナント情報を直接埋め込む場合の越境リスク
+- **LLMレスポンスの信頼しすぎ**: LLMの出力を無検証で後段処理に渡していないか\
+"""
+
 
 def build_system_prompt(params: AuditParameters, mode: str = "deep") -> str:
     """モードとパラメータを埋め込んだシステムプロンプトを生成"""
@@ -102,9 +113,17 @@ ANALYZE_PROMPT = """\
 - 認証バイパス・セッション固定・パストラバーサル
 - エラー処理漏れ・情報漏えい・ログ不足
 - 非同期競合・外部依存信頼しすぎ・シークレット埋め込み
+{ai_checks}
 
 静的解析で検出された問題は「source: semgrep/gitleaks」として取り込み、
 より深い文脈解釈を加えて確認・補足すること。
+
+## confidence の判断基準（重要）
+- **High**: コードを見ただけで確実に問題と断言できる（例: raw SQL文字列結合、平文パスワード保存）
+- **Medium**: 怪しいが文脈次第では安全な可能性あり（例: open()にユーザー入力、md5使用）
+- **Low**: 気になるが誤検知の可能性が高い。「一応報告するが確認してほしい」レベル（例: パストラバーサルの可能性、弱い乱数かもしれない）
+
+Lowの場合は why_this_matters に「用途によっては安全な可能性があります。詳しく調査が必要な場合はご依頼ください。」を含めること。
 
 以下のJSON配列のみで出力してください:
 [
@@ -180,6 +199,7 @@ def format_analyze(
     attack_surface_json: str,
     static_findings_text: str,
     file_path: str = "",
+    is_ai_code: bool = False,
 ) -> str:
     return ANALYZE_PROMPT.format(
         content=content[:12000],
@@ -190,6 +210,7 @@ def format_analyze(
         attack_surface=attack_surface_json,
         static_findings=static_findings_text,
         file_path=file_path,
+        ai_checks=AI_CHECKS_ADDON if is_ai_code else "",
     )
 
 

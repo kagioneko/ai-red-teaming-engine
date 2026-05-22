@@ -1,20 +1,109 @@
 {
-  "mode": "safe",
+  "mode": "deep",
   "backend": "claude",
   "summary": {
-    "fixtures": 1,
-    "perfect": 1,
-    "avg_recall": 1.0,
-    "total_matched": 1,
-    "total_expected": 1,
-    "total_fp": 15,
-    "elapsed_sec": 465.22
+    "fixtures": 7,
+    "perfect": 6,
+    "avg_recall": 0.8571,
+    "total_matched": 6,
+    "total_expected": 7,
+    "total_fp": 31,
+    "elapsed_sec": 3407.81
   },
   "details": [
     {
+      "name": "auth_bypass",
+      "recall": 1.0,
+      "false_positives": 7,
+      "matched": [
+        {
+          "category": "Authentication",
+          "severity": "High",
+          "description": "認証バイパス",
+          "line_hint": 11
+        }
+      ],
+      "missed": [],
+      "elapsed_sec": 435.27,
+      "error": ""
+    },
+    {
+      "name": "command_injection",
+      "recall": 1.0,
+      "false_positives": 9,
+      "matched": [
+        {
+          "category": "Command Execution",
+          "severity": "Critical",
+          "description": "コマンドインジェクション",
+          "line_hint": 19
+        }
+      ],
+      "missed": [],
+      "elapsed_sec": 1384.15,
+      "error": ""
+    },
+    {
+      "name": "hardcoded_secret",
+      "recall": 1.0,
+      "false_positives": 7,
+      "matched": [
+        {
+          "category": "Secrets",
+          "severity": "High",
+          "description": "ハードコードされたシークレット",
+          "line_hint": 5
+        }
+      ],
+      "missed": [],
+      "elapsed_sec": 894.42,
+      "error": ""
+    },
+    {
+      "name": "insecure_deserialization",
+      "recall": 1.0,
+      "false_positives": 7,
+      "matched": [
+        {
+          "category": "Deserialization",
+          "severity": "Critical",
+          "description": "安全でないデシリアライゼーション",
+          "line_hint": 17
+        }
+      ],
+      "missed": [],
+      "elapsed_sec": 417.38,
+      "error": ""
+    },
+    {
+      "name": "path_traversal",
+      "recall": 0.0,
+      "false_positives": 0,
+      "matched": [],
+      "missed": [],
+      "elapsed_sec": 389.65,
+      "error": "1 validation error for Issue\nsource\n  Input should be 'llm', 'semgrep', 'gitleaks' or 'merged' [type=literal_error, input_value='custom', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"
+    },
+    {
+      "name": "prompt_injection",
+      "recall": 0.0,
+      "false_positives": 0,
+      "matched": [],
+      "missed": [
+        {
+          "category": "Prompt Injection",
+          "severity": "High",
+          "description": "プロンプトインジェクション",
+          "line_hint": 15
+        }
+      ],
+      "elapsed_sec": 213.12,
+      "error": ""
+    },
+    {
       "name": "sql_injection",
       "recall": 1.0,
-      "false_positives": 15,
+      "false_positives": 0,
       "matched": [
         {
           "category": "Injection",
@@ -24,8 +113,42 @@
         }
       ],
       "missed": [],
-      "elapsed_sec": 465.22,
+      "elapsed_sec": 33.3,
       "error": ""
+    },
+    {
+      "name": "ssrf",
+      "recall": 1.0,
+      "false_positives": 1,
+      "matched": [
+        {
+          "category": "SSRF",
+          "severity": "High",
+          "description": "SSRF",
+          "line_hint": 12
+        }
+      ],
+      "missed": [],
+      "elapsed_sec": 30.17,
+      "error": ""
+    },
+    {
+      "name": "weak_crypto",
+      "recall": 0.0,
+      "false_positives": 0,
+      "matched": [],
+      "missed": [],
+      "elapsed_sec": 26.53,
+      "error": "1 validation error for Issue\nsource\n  Input should be 'llm', 'semgrep', 'gitleaks' or 'merged' [type=literal_error, input_value='custom', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"
+    },
+    {
+      "name": "xxe",
+      "recall": 0.0,
+      "false_positives": 0,
+      "matched": [],
+      "missed": [],
+      "elapsed_sec": 25.81,
+      "error": "1 validation error for Issue\nsource\n  Input should be 'llm', 'semgrep', 'gitleaks' or 'merged' [type=literal_error, input_value='custom', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"
     }
   ]
 }

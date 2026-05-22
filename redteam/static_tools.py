@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 from .models import StaticFinding, StaticAnalysisResult
-from .custom_rules import run_custom_rules
+from .custom_rules import run_custom_rules, run_builtin_safe_rules
 
 
 def _tool_available(name: str) -> str | None:
@@ -173,6 +173,10 @@ def run_static_analysis(
         )
         result.findings.extend(custom_findings)
         result.error_messages.extend(custom_warnings)
+
+        # 組み込み「安全側に倒す」パターン（常時有効、Low confidence）
+        builtin_findings = run_builtin_safe_rules(content, file_path or str(tmp_path))
+        result.findings.extend(builtin_findings)
 
     finally:
         tmp_path.unlink(missing_ok=True)

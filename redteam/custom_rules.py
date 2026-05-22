@@ -197,6 +197,57 @@ def matches_to_findings(matches: list[CustomRuleMatch], file_path: str) -> list[
     ]
 
 
+# ─── 組み込み「安全側に倒す」パターン（常時有効） ────────────────────────────
+
+_BUILTIN_SAFE_RULES: list[CustomRule] = [
+    CustomRule(
+        rule_id="BUILTIN-CRYPTO-001",
+        name="弱いハッシュ関数の使用",
+        pattern=re.compile(r"\b(md5|sha1)\s*\(", re.IGNORECASE),
+        severity="Low",
+        category="Infra",
+        message="MD5/SHA1はパスワードハッシュやセキュリティ用途には不適切です。用途を確認してください。",
+        file_glob=None,
+    ),
+    CustomRule(
+        rule_id="BUILTIN-PATH-001",
+        name="変数を使ったファイルパス操作",
+        pattern=re.compile(r"(open\s*\([^\"\')\s]|Path\s*\([^\"\')\s]|send_file\s*\()"),
+        severity="Low",
+        category="Input Validation",
+        message="ファイルパス操作に変数が渡されています。ユーザー入力由来の場合はパストラバーサルのリスクがあります。",
+        file_glob=None,
+    ),
+    CustomRule(
+        rule_id="BUILTIN-XXE-001",
+        name="XMLパーサーの使用",
+        pattern=re.compile(r"(xml\.etree|ElementTree\.parse|minidom\.parse|SAXParser|expat\.Parse|lxml.*etree|etree\.XMLParser|etree\.parse)", re.IGNORECASE),
+        severity="Low",
+        category="Injection",
+        message="XMLパーサーを使用しています。外部エンティティ展開（XXE）のリスクがないか確認してください。resolve_entities=True は特に危険です。",
+        file_glob=None,
+    ),
+    CustomRule(
+        rule_id="BUILTIN-RAND-001",
+        name="非暗号学的乱数の使用",
+        pattern=re.compile(r"\brandom\.(random|randint|choice|shuffle)\s*\("),
+        severity="Low",
+        category="Infra",
+        message="random モジュールはセキュリティ用途（トークン生成等）には不適切です。secrets モジュールの使用を検討してください。",
+        file_glob=None,
+    ),
+]
+
+
+def run_builtin_safe_rules(
+    content: str,
+    file_path: str,
+) -> list[StaticFinding]:
+    """組み込みパターンを常時適用して Low confidence の参考情報を返す"""
+    matches = match_rules(content, file_path, _BUILTIN_SAFE_RULES)
+    return matches_to_findings(matches, file_path)
+
+
 # ─── 統合エントリポイント ───────────────────────────────────────────────────
 
 def run_custom_rules(

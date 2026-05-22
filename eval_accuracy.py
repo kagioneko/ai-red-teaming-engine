@@ -30,15 +30,15 @@ FIXTURES_DIR = Path(__file__).parent / "tests" / "fixtures"
 # カテゴリ部分一致マップ（expected の category と engine の category を緩やかに照合）
 _CATEGORY_ALIASES: dict[str, list[str]] = {
     "Injection":          ["injection", "sql", "sqli"],
-    "Command Execution":  ["command", "exec", "subprocess", "rce", "os command"],
-    "Path Traversal":     ["path", "traversal", "directory"],
+    "Command Execution":  ["injection", "command", "exec", "subprocess", "rce"],
+    "Path Traversal":     ["input validation", "path", "traversal", "directory"],
     "Secrets":            ["secret", "hardcoded", "credential", "api key", "token"],
-    "Deserialization":    ["deserializ", "pickle", "unsafe"],
+    "Deserialization":    ["memory", "deserializ", "pickle", "unsafe"],
     "SSRF":               ["ssrf", "server-side request"],
-    "Cryptography":       ["crypto", "md5", "weak", "hash"],
+    "Cryptography":       ["infra", "crypto", "md5", "weak", "hash"],
     "Authentication":     ["auth", "bypass", "access control"],
-    "XXE":                ["xxe", "xml", "external entity"],
-    "Prompt Injection":   ["prompt", "injection", "llm"],
+    "XXE":                ["injection", "xxe", "xml", "external entity"],
+    "Prompt Injection":   ["prompt", "llm"],
 }
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from pydantic import TypeAdapter
 
@@ -12,8 +13,10 @@ from .models import (
     AuditMode,
     AuditParameters,
     Issue,
+    IssueScores,
     StaticAnalysisResult,
 )
+from .neurostate_monitor import score_single_turn, DEFAULT_T_DEFAULT
 from .normalizer import NormalizedInput
 from .prompts import build_system_prompt, format_analyze
 from .static_tools import format_static_for_prompt
@@ -83,11 +86,20 @@ def analyze(
             file_path=normalized.file_path,
             system=system,
             client=client,
+            is_ai_code=_is_ai_code(chunk),
         )
         all_issues.extend(chunk_issues)
 
     # 静的解析のみの指摘で未カバーのものを追加
     all_issues = _merge_static_only(all_issues, static_results)
+
+    # NeuroState によるプロンプトインジェクション検知（AIコードのみ）
+    if any(_is_ai_code(chunk) for chunk in normalized.chunks):
+        ns_issues = _neurostate_prompt_check(
+            "\n".join(normalized.chunks),
+            client=client,
+        )
+        all_issues.extend(ns_issues)
 
     # 重複排除（同一タイトル + 同一affected_area）
     return _dedup_issues(all_issues)
@@ -142,6 +154,7 @@ def _analyze_chunk(
     file_path: str,
     system: str,
     client: LLMClient,
+    is_ai_code: bool = False,
 ) -> list[Issue]:
     user = format_analyze(
         content=chunk,
@@ -152,6 +165,7 @@ def _analyze_chunk(
         attack_surface_json=attack_surface_json,
         static_findings_text=static_findings_text,
         file_path=file_path,
+        is_ai_code=is_ai_code,
     )
 
     try:
@@ -216,7 +230,7 @@ def _merge_static_only(issues: list[Issue], static_results: StaticAnalysisResult
             title=f"[{finding.tool.upper()}] {finding.rule_id}: {finding.message[:80]}",
             severity=severity,  # type: ignore
             confidence="High",  # 静的解析の検出は確信度高
-            category="Secret" if finding.tool == "gitleaks" else "Other",
+            category="Secret" if finding.tool == "gitleaks" else _category_from_rule_id(finding.rule_id),
             affected_area=f"{finding.file_path}:{finding.line}",
             why_this_matters=finding.message,
             evidence=finding.code_snippet[:200] if finding.code_snippet else "",
@@ -232,6 +246,119 @@ def _merge_static_only(issues: list[Issue], static_results: StaticAnalysisResult
             ),
         )
         issues.append(issue)
+
+    return issues
+
+
+_RULE_ID_CATEGORY_MAP: list[tuple[tuple[str, ...], str]] = [
+    (("sql", "sqli", "tainted-sql", "injection.sql", "command", "exec", "subprocess", "shell", "os-command", "rce"), "Injection"),
+    (("path", "traversal", "directory", "lfi", "rfi"), "Input Validation"),
+    (("secret", "hardcoded", "credential", "api-key", "token", "password"), "Secret"),
+    (("deserializ", "pickle", "yaml.load", "unsafe-load"), "Memory"),
+    (("ssrf", "server-side-request", "unvalidated-url"), "SSRF"),
+    (("crypto", "md5", "sha1", "weak-hash", "weak-cipher", "insecure-random"), "Infra"),
+    (("auth", "bypass", "privilege"), "Auth"),
+    (("access-control", "idor"), "IDOR"),
+    (("xxe", "xml-entity", "external-entity", "defusedxml", "xml.sax", "etree"), "Injection"),
+    (("xss", "cross-site", "html-injection"), "XSS"),
+    (("prompt", "llm", "ai-injection"), "Prompt"),
+    (("csrf", "cross-site-request"), "CSRF"),
+    (("log", "logging"), "Logging"),
+]
+
+
+def _category_from_rule_id(rule_id: str) -> str:
+    """SemgrepのruleIDからIssueカテゴリを推定する"""
+    r = rule_id.lower()
+    for keywords, category in _RULE_ID_CATEGORY_MAP:
+        if any(kw in r for kw in keywords):
+            return category
+    return "Other"
+
+
+def _extract_prompt_candidates(code: str) -> list[tuple[str, int]]:
+    """コードからシステムプロンプト候補（テキスト, 行番号）を抽出する"""
+    candidates: list[tuple[str, int]] = []
+
+    # 三重クォート文字列（50文字以上を対象）
+    for m in re.finditer(r'"""([\s\S]{50,})"""', code):
+        line = code[:m.start()].count("\n") + 1
+        candidates.append((m.group(1).strip(), line))
+    for m in re.finditer(r"'''([\s\S]{50,})'''", code):
+        line = code[:m.start()].count("\n") + 1
+        candidates.append((m.group(1).strip(), line))
+
+    # SYSTEM_PROMPT / system / instruction 変数に代入された文字列
+    for m in re.finditer(
+        r'(?:SYSTEM_PROMPT|system_prompt|system_message|instruction|system)\s*=\s*[fF]?["\']([^"\']{30,})["\']',
+        code,
+    ):
+        line = code[:m.start()].count("\n") + 1
+        candidates.append((m.group(1).strip(), line))
+
+    # f-string でユーザー入力を埋め込んでいる箇所（{variable} を含む文字列）
+    for m in re.finditer(r'[fF]"""([\s\S]{30,})"""', code):
+        text = m.group(1)
+        if re.search(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}", text):
+            line = code[:m.start()].count("\n") + 1
+            candidates.append((text.strip(), line))
+
+    return candidates
+
+
+def _neurostate_prompt_check(
+    code: str,
+    client: LLMClient,
+    t_default: float = DEFAULT_T_DEFAULT,
+) -> list[Issue]:
+    """
+    AIコード内のシステムプロンプト候補をNeuroStateで分析し、
+    インジェクションリスクが高いものをIssueとして返す。
+    """
+    candidates = _extract_prompt_candidates(code)
+    if not candidates:
+        return []
+
+    issues: list[Issue] = []
+    for text, line_hint in candidates:
+        try:
+            v, ns = score_single_turn(text, backend=client.backend_name)
+        except Exception as e:
+            logger.debug("NeuroState計測エラー (line=%d): %s", line_hint, e)
+            continue
+
+        if v > t_default:
+            issues.append(Issue(
+                title="[NeuroState] プロンプトインジェクション脆弱構造を検出",
+                severity="High",
+                confidence="Medium",
+                category="Prompt",
+                affected_area=f"line ~{line_hint}",
+                why_this_matters=(
+                    f"システムプロンプトがインジェクションに脆弱な構造を持つ。"
+                    f" V_current={v:.2f} > T={t_default:.2f},"
+                    f" corruption={ns.corruption:.2f},"
+                    f" openness={ns.openness:.2f}"
+                ),
+                attack_perspective="攻撃者はdocument/questionパラメータに悪意ある指示を埋め込むことで、AIの動作を上書きできる可能性がある",
+                evidence=text[:300],
+                conditions_for_failure="外部入力が無検証でプロンプトに結合されている場合",
+                false_positive_risk="意図的に柔軟な指示を持つプロンプトを誤検知する可能性あり。人間の確認を推奨",
+                needs_human_confirmation=True,
+                source="llm",
+                line_start=line_hint,
+                scores=IssueScores(
+                    impact=8.0,
+                    likelihood=7.0,
+                    exploitability=7.0,
+                    evidence=7.0,
+                    urgency=8.0,
+                ),
+            ))
+            logger.info(
+                "NeuroState検知: V=%.2f > T=%.2f, corruption=%.2f (line=%d)",
+                v, t_default, ns.corruption, line_hint,
+            )
 
     return issues
 

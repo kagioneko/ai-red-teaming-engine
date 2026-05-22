@@ -245,6 +245,16 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
     show_default=True,
     help="--session-score 時の絶対防衛ライン (0.0-1.0)",
 )
+@click.option(
+    "--investigate",
+    "investigate_category",
+    default=None,
+    help=(
+        "Low confidence の指摘カテゴリを詳細調査する。"
+        " 例: --investigate 'Input Validation'"
+        " 前回スキャン結果から対象カテゴリのみ抽出してLLMで深掘り分析する。"
+    ),
+)
 def main(
     file_path: str | None,
     dir_path: str | None,
@@ -277,12 +287,18 @@ def main(
     preset: str,
     session_score_text: str | None,
     session_t_default: float,
+    investigate_category: str | None,
 ) -> None:
     """
     AI-Red-Teaming-Engine — 防御目的の敵対的セキュリティ監査エンジン (v0.4)
 
     ⚠️  このツールはプロトタイプ版です。全ての指摘は人間による最終確認が必要です。
     """
+    # ─── 詳細調査モード（--investigate） ──────────────────────────────────────
+    if investigate_category is not None:
+        _run_investigate(investigate_category, backend or "claude", model)
+        sys.exit(0)
+
     # ─── NeuroState セッションスコアリング（早期終了モード） ───────────────────
     if session_score_text is not None:
         _b = backend or "claude"
@@ -807,6 +823,49 @@ def _load_ignore(
             return load_ignore_rules(candidate)
 
     return IgnoreRules()
+
+
+def _run_investigate(category: str, backend: str, model: str) -> None:
+    """
+    Low confidence 指摘を詳細調査する。
+    前回の eval_results.json から対象カテゴリを抽出してLLMで深掘り分析する。
+    """
+    from redteam.llm_client import LLMClient
+
+    results_file = Path(__file__).parent / "eval_results.json"
+    if not results_file.exists():
+        click.echo("⚠️  eval_results.json が見つかりません。先にスキャンを実行してください。", err=True)
+        return
+
+    data = json.loads(results_file.read_text())
+    client = LLMClient(model=model, backend=backend)
+
+    click.echo(f"\n🔍 詳細調査: カテゴリ = {category!r}\n")
+
+    found = False
+    for detail in data.get("details", []):
+        for issue in detail.get("detected_issues", []):
+            if category.lower() in issue.get("category", "").lower():
+                found = True
+                click.echo(f"--- {detail['name']} ---")
+                prompt = (
+                    f"以下の指摘について、詳細な脆弱性分析を行ってください。\n\n"
+                    f"カテゴリ: {issue['category']}\n"
+                    f"タイトル: {issue.get('title', '')}\n"
+                    f"severity: {issue.get('severity', '')}\n\n"
+                    f"この指摘が実際に危険かどうか、攻撃シナリオと合わせて詳しく分析してください。"
+                    f"誤検知の可能性も含めて評価してください。"
+                )
+                result = client.query(
+                    "あなたはセキュリティ専門家です。指摘の詳細分析を行ってください。",
+                    prompt,
+                )
+                click.echo(result)
+                click.echo()
+
+    if not found:
+        click.echo(f"カテゴリ '{category}' の指摘が見つかりませんでした。")
+        click.echo("利用可能なカテゴリを確認するには eval_results.json を参照してください。")
 
 
 def _write_output(text: str, output_path: str | None) -> None:
