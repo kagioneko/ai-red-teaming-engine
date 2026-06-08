@@ -16,3 +16,4 @@ venv/
 *.p12
 secrets/
 credentials/
+.claude/
