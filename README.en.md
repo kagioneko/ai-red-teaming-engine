@@ -6,6 +6,9 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![SARIF](https://img.shields.io/badge/output-SARIF%202.1.0-orange)](https://sarifweb.azurewebsites.net/)
+[![PyPI](https://img.shields.io/pypi/v/ai-red-teaming-engine)](https://pypi.org/project/ai-red-teaming-engine/)
+
+![demo](demo/demo.gif)
 
 > 🇯🇵 [日本語版 README はこちら](README.md)
 

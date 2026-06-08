@@ -6,6 +6,9 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![SARIF](https://img.shields.io/badge/output-SARIF%202.1.0-orange)](https://sarifweb.azurewebsites.net/)
+[![PyPI](https://img.shields.io/pypi/v/ai-red-teaming-engine)](https://pypi.org/project/ai-red-teaming-engine/)
+
+![demo](demo/demo.gif)
 
 コード・仕様書・AIエージェント設計を「攻撃者の視点」で読み直す Python 製ツール。
 **Semgrep / Gitleaks による静的解析** と **LLM（Claude / Gemini）による文脈解析** を組み合わせ、
