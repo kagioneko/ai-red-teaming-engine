@@ -39,7 +39,17 @@
 
 ## インストール
 
-### 依存パッケージ
+```bash
+pip install ai-red-teaming-engine
+```
+
+LSP サーバー（Neovim / Zed / Emacs 向け）を使う場合:
+
+```bash
+pip install "ai-red-teaming-engine[lsp]"
+```
+
+### 依存パッケージ（ソースから使う場合）
 
 ```bash
 pip install click pydantic anthropic
@@ -225,6 +235,50 @@ engine.py (CLI)
     ├── scorer.py         # 優先度スコアリング
     ├── formatters.py     # JSON / Markdown / SARIF 出力
     └── llm_client.py     # 統一 LLM クライアント
+```
+
+---
+
+## LSP サーバー（Neovim / Zed / Emacs）
+
+`stdio` モードで起動する LSP サーバーです。任意の LSP 対応エディタから利用できます。
+
+```bash
+pip install "ai-red-teaming-engine[lsp]"
+redteam-lsp   # stdio モードで起動
+```
+
+### Neovim（nvim-lspconfig）
+
+```lua
+local lspconfig = require("lspconfig")
+local configs = require("lspconfig.configs")
+
+if not configs.redteam_lsp then
+  configs.redteam_lsp = {
+    default_config = {
+      cmd = { "redteam-lsp" },
+      filetypes = { "python", "javascript", "typescript", "go", "java" },
+      root_dir = lspconfig.util.root_pattern(".git", "pyproject.toml"),
+    },
+  }
+end
+lspconfig.redteam_lsp.setup({})
+```
+
+### Zed
+
+`~/.config/zed/settings.json` に追加:
+
+```json
+{
+  "lsp": {
+    "redteam-lsp": {
+      "binary": { "path": "redteam-lsp" },
+      "languages": ["Python", "JavaScript", "TypeScript"]
+    }
+  }
+}
 ```
 
 ---
