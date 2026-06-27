@@ -125,7 +125,7 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
 @click.option(
     "--injection-types",
     default=None,
-    help="注入ペイロード種別を絞り込む（カンマ区切り: direct,indirect,jailbreak,tool_abuse）",
+    help="注入ペイロード種別を絞り込む（カンマ区切り: direct,indirect,jailbreak,tool_abuse,benign_wrapped）",
 )
 @click.option(
     "--memory-poison",

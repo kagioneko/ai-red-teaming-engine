@@ -56,9 +56,26 @@ def test_payload_catalog_has_required_keys() -> None:
 
 
 def test_payload_types_are_valid() -> None:
-    valid_types = {"direct", "indirect", "jailbreak", "tool_abuse"}
+    valid_types = {"direct", "indirect", "jailbreak", "tool_abuse", "benign_wrapped"}
     for p in PAYLOAD_CATALOG:
         assert p["type"] in valid_types
+
+
+def test_benign_wrapped_payloads_exist() -> None:
+    bw = [p for p in PAYLOAD_CATALOG if p["type"] == "benign_wrapped"]
+    assert len(bw) >= 3
+
+
+def test_benign_wrapped_payloads_are_multi_turn() -> None:
+    bw = [p for p in PAYLOAD_CATALOG if p["type"] == "benign_wrapped"]
+    for p in bw:
+        assert "[Turn 9 - PAYLOAD]" in p["payload"], f"{p['id']} should have final attack turn"
+
+
+def test_benign_wrapped_ids_prefixed_bw() -> None:
+    bw = [p for p in PAYLOAD_CATALOG if p["type"] == "benign_wrapped"]
+    for p in bw:
+        assert p["id"].startswith("BW-")
 
 
 # ─── _calc_overall_risk ───────────────────────────────────────────────────────
