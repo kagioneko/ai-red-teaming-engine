@@ -256,6 +256,28 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
         " 前回スキャン結果から対象カテゴリのみ抽出してLLMで深掘り分析する。"
     ),
 )
+@click.option(
+    "--init-ci",
+    "init_ci",
+    is_flag=True,
+    default=False,
+    help="CI/CD テンプレートを生成する（--file / --dir 不要）。",
+)
+@click.option(
+    "--ci-platform",
+    "ci_platform",
+    default="github",
+    type=click.Choice(["github", "gitlab"]),
+    show_default=True,
+    help="--init-ci 時の対象プラットフォーム。",
+)
+@click.option(
+    "--force",
+    "force",
+    is_flag=True,
+    default=False,
+    help="--init-ci で既存ファイルを上書きする。",
+)
 def main(
     file_path: str | None,
     dir_path: str | None,
@@ -289,12 +311,36 @@ def main(
     session_score_text: str | None,
     session_t_default: float,
     investigate_category: str | None,
+    init_ci: bool,
+    ci_platform: str,
+    force: bool,
 ) -> None:
     """
     AI-Red-Teaming-Engine — 防御目的の敵対的セキュリティ監査エンジン (v0.4)
 
     ⚠️  このツールはプロトタイプ版です。全ての指摘は人間による最終確認が必要です。
     """
+    # ─── CI テンプレート生成（--init-ci） ─────────────────────────────────────
+    if init_ci:
+        from redteam.ci import init_ci as _init_ci
+        try:
+            created = _init_ci(platform=ci_platform, force=force)
+            click.echo(f"✅ CI テンプレートを生成しました ({ci_platform}):", err=False)
+            for path in created:
+                click.echo(f"   {path}")
+            click.echo("\n次のステップ:")
+            if ci_platform == "github":
+                click.echo("  1. ANTHROPIC_API_KEY を GitHub Secrets に追加")
+                click.echo("  2. git add .github/workflows/redteam.yml .redteam-ignore && git commit")
+                click.echo("  3. PR を作成すると自動でスキャンが実行されます")
+            else:
+                click.echo("  1. ANTHROPIC_API_KEY を GitLab CI/CD Variables に追加")
+                click.echo("  2. git add .gitlab-ci.yml .redteam-ignore && git commit")
+        except FileExistsError as e:
+            click.echo(f"⚠️  {e}", err=True)
+            raise SystemExit(1)
+        return
+
     # ─── 詳細調査モード（--investigate） ──────────────────────────────────────
     if investigate_category is not None:
         _run_investigate(investigate_category, backend or "claude", model)
