@@ -40,6 +40,7 @@ from redteam.formatters import (
     format_dir_json,
     format_dir_markdown,
     format_dir_sarif,
+    format_html,
     format_json,
     format_markdown,
     format_sarif,
@@ -52,7 +53,7 @@ LOG_DIR = Path(__file__).parent / "logs"
 
 _TYPE_CHOICES = ["code", "spec", "api", "prompt", "architecture", "agent"]
 _MODE_CHOICES = ["safe", "deep", "agent-audit", "patch"]
-_FORMAT_CHOICES = ["text", "json", "sarif", "both"]
+_FORMAT_CHOICES = ["text", "json", "sarif", "html", "both"]
 _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
 
 
@@ -90,7 +91,7 @@ _BACKEND_CHOICES = ["api", "claude", "gemini", "codex"]
     default="text",
     type=click.Choice(_FORMAT_CHOICES),
     show_default=True,
-    help="出力形式: text（Markdown）/ json / sarif / both",
+    help="出力形式: text（Markdown）/ json / sarif / html / both",
 )
 @click.option(
     "--output", "-o",
@@ -399,6 +400,9 @@ def main(
             result_text = format_dir_json(dir_report)
         elif output_format == "sarif":
             result_text = format_dir_sarif(dir_report)
+        elif output_format == "html":
+            # ディレクトリスキャンはMarkdownにフォールバック（将来対応予定）
+            result_text = format_dir_markdown(dir_report)
         else:
             result_text = format_dir_markdown(dir_report)
 
@@ -666,6 +670,8 @@ def main(
             result_text = format_json(report)
         elif output_format == "sarif":
             result_text = format_sarif(report)
+        elif output_format == "html":
+            result_text = format_html(report)
         else:
             result_text = format_markdown(report)
         _write_output(result_text, output)
@@ -730,6 +736,8 @@ def main(
         result_text = format_json(report)
     elif output_format == "sarif":
         result_text = format_sarif(report)
+    elif output_format == "html":
+        result_text = format_html(report)
     elif output_format == "both":
         result_text = format_markdown(report) + "\n\n---\n\n" + format_json(report)
     else:
