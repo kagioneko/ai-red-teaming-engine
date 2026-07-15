@@ -14,6 +14,13 @@ V_current はNeuroState 7次元ベクトルの加重合成:
 検知パターン:
   - sudden:    V_current > T_default  → 突発型インジェクション
   - slow_burn: A_short > L_trigger    → じわじわ型（マルチターン）
+
+注意（2026-07-15追記）: このモジュールは会話ターンをLLM judgeで7次元スコアリングし
+事後的に閾値判定する「測定・検出の向き」（paper2 NeuroState-Rと同型の構造）である。
+paper2で「6次元スコアは3値分類(comply/neutral/refusal)の言い換えで判別力ゼロ」と
+証明されたのはNeuroState-R固有の検証だが、本モジュールの7次元加重合成が同じ罠に
+陥っていないかは未検証。単純な3値/2値分類との比較実験は未実施。
+詳細: neurostate-engine/docs/measurement_vs_control_scope.md
 """
 from __future__ import annotations
 
